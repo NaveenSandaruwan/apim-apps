@@ -42,6 +42,14 @@ function mapServiceToForm(service) {
         return getEmptyService();
     }
 
+    const normalizeCategory = (c) => {
+        if (!c) return 'Standard';
+        const up = String(c).toUpperCase();
+        if (up === 'STANDARD') return 'Standard';
+        if (up === 'SECURITY') return 'Security';
+        return c;
+    };
+
     return {
         id: service.id,
         name: service.name || '',
@@ -55,7 +63,7 @@ function mapServiceToForm(service) {
                 id: header.id || createHeaderId(),
                 headerKey: header.headerKey || '',
                 headerValue: header.headerValue || '',
-                category: header.category || 'Standard',
+                category: normalizeCategory(header.category),
             }))
             : [],
     };

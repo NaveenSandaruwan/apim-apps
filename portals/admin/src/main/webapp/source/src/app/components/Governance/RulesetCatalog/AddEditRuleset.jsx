@@ -219,7 +219,19 @@ function AddEditRuleset(props) {
             .then((data) => {
                 // API returns { list: [...] } or an array
                 const list = Array.isArray(data) ? data : (data.list || []);
-                setServices(list);
+                // Normalize header category values for UI (backend may return uppercase)
+                const normalizeCategory = (c) => {
+                    if (!c) return 'Standard';
+                    const up = String(c).toUpperCase();
+                    if (up === 'STANDARD') return 'Standard';
+                    if (up === 'SECURITY') return 'Security';
+                    return c;
+                };
+                const normalized = list.map((s) => ({
+                    ...s,
+                    headers: s.headers ? s.headers.map((h) => ({ ...h, category: normalizeCategory(h.category) })) : [],
+                }));
+                setServices(normalized);
             })
             .catch((err) => {
                 console.error('Failed to load external services', err);
@@ -305,7 +317,12 @@ function AddEditRuleset(props) {
             headers: serviceData.headers.map((header) => ({
                 headerKey: header.headerKey,
                 headerValue: header.headerValue,
-                category: header.category,
+                // Store category as Title Case (first letter capitalized) per UI requirement
+                category: (() => {
+                    const c = header.category ? String(header.category) : '';
+                    if (!c) return 'Standard';
+                    return c.charAt(0).toUpperCase() + c.slice(1).toLowerCase();
+                })(),
             })),
         };
         const method = serviceDialogMode === 'create' ? 'POST' : 'PUT';
