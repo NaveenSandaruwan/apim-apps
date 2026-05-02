@@ -1,7 +1,11 @@
 /*
  * ExternalRulesetForm - form for EXTERNAL rulesets (MCP / API_DEFINITION)
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {
+    useState,
+    useEffect,
+    useCallback,
+} from 'react';
 import { useIntl } from 'react-intl';
 import {
     Box,
@@ -17,7 +21,12 @@ import { buildExternalYaml } from './rulesetYamlUtils';
 
 // YAML generation moved to rulesetYamlUtils.buildExternalYaml
 
-function ExternalRulesetForm({ rulesetContent, onContentChange }) {
+function ExternalRulesetForm({
+    rulesetContent,
+    onContentChange,
+    serviceRef,
+    onServiceRefChange,
+}) {
     const intl = useIntl();
 
     const formatMessage = (id, defaultMessage) => intl.formatMessage({
@@ -70,14 +79,30 @@ function ExternalRulesetForm({ rulesetContent, onContentChange }) {
         }
     }, []);
 
+    // Sync serviceRef prop from parent into local state when it changes
+    useEffect(() => {
+        if (serviceRef !== undefined && serviceRef !== values.serviceRef) {
+            setValues((prev) => {
+                const next = { ...prev, serviceRef: serviceRef || '' };
+                const yaml = buildExternalYaml(next);
+                onContentChange(yaml);
+                return next;
+            });
+        }
+    }, [serviceRef]);
+
     const update = useCallback((field, v) => {
         setValues((prev) => {
             const next = { ...prev, [field]: v };
             const yaml = buildExternalYaml(next);
             onContentChange(yaml);
+            // If the serviceRef field changed, notify parent so it can update selection
+            if (field === 'serviceRef' && typeof onServiceRefChange === 'function') {
+                onServiceRefChange(v);
+            }
             return next;
         });
-    }, [onContentChange]);
+    }, [onContentChange, onServiceRefChange]);
 
     return (
         <Box
@@ -307,10 +332,14 @@ function ExternalRulesetForm({ rulesetContent, onContentChange }) {
 ExternalRulesetForm.propTypes = {
     rulesetContent: PropTypes.string,
     onContentChange: PropTypes.func.isRequired,
+    serviceRef: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    onServiceRefChange: PropTypes.func,
 };
 
 ExternalRulesetForm.defaultProps = {
     rulesetContent: '',
+    serviceRef: undefined,
+    onServiceRefChange: undefined,
 };
 
 export default ExternalRulesetForm;

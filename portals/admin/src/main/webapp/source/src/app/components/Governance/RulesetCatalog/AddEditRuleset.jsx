@@ -31,6 +31,8 @@ import {
     MenuItem,
     Paper,
     CircularProgress,
+    Checkbox,
+    FormControlLabel,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -59,9 +61,12 @@ import * as monaco from 'monaco-editor';
 import { Editor as MonacoEditor, loader } from '@monaco-editor/react';
 import GenericRulesetForm from './GenericRulesetForm';
 import ExternalRulesetForm from './ExternalRulesetForm';
+import ExternalServiceDialog from './ExternalServiceDialog';
 
 // load Monaco from node_modules instead of CDN
 loader.config({ monaco });
+
+const DELETE_EXTERNAL_SERVICE_MESSAGE_ID = 'Governance.Rulesets.AddEdit.external.services.delete';
 
 const StyledHr = styled('hr')({ border: 'solid 1px #efefef' });
 
@@ -89,6 +94,9 @@ function reducer(state, { field, value }) {
     switch (field) {
         case 'all':
             return value;
+        case 'externalServiceId':
+            nextState.externalServiceId = value;
+            return nextState;
         case 'name':
         case 'description':
         case 'ruleType':
@@ -122,6 +130,7 @@ function AddEditRuleset(props) {
         rulesetContent: '',
         documentationLink: '',
         ruleCategory: '',
+        externalServiceId: '',
     };
     const [state, dispatch] = useReducer(reducer, initialState);
 
@@ -143,40 +152,224 @@ function AddEditRuleset(props) {
 
     useEffect(() => {
         const restApi = new GovernanceAPI();
-        if (id) {
-            // Get ruleset metadata
-            restApi
-                .getRulesetById(id)
-                .then((result) => {
-                    const { body } = result;
-                    return body;
-                })
-                .then((data) => {
-                    // If ruleCategory is GENERIC, display ruleType as GENERIC in dropdown
-                    const loadedData = data.ruleCategory === 'GENERIC'
-                        ? { ...data, ruleType: 'GENERIC' }
-                        : data;
-                    dispatch({ field: 'all', value: loadedData });
-                    // After getting metadata, fetch the ruleset content
-                    return restApi.getRulesetContent(id);
-                })
-                .then((contentResult) => {
-                    const { text } = contentResult;
-                    dispatch({ field: 'rulesetContent', value: text });
-                })
-                .catch((error) => {
-                    const { response } = error;
-                    if (response && response.body) {
-                        Alert.error(response.body.description);
+        if (!id) {
+            return;
+        }
+
+        // Get ruleset metadata
+        restApi
+            .getRulesetById(id)
+            .then((result) => {
+                const { body } = result;
+                return body;
+            })
+            .then((data) => {
+                // If ruleCategory is GENERIC, display ruleType as GENERIC in dropdown
+                const loadedData = data.ruleCategory === 'GENERIC'
+                    ? { ...data, ruleType: 'GENERIC' }
+                    : data;
+                dispatch({ field: 'all', value: loadedData });
+                // After getting metadata, fetch the ruleset content
+                return restApi.getRulesetContent(id);
+            })
+            .then((contentResult) => {
+                const { text } = contentResult;
+                dispatch({ field: 'rulesetContent', value: text });
+            })
+            .catch((error) => {
+                const { response } = error;
+                if (response && response.body) {
+                    Alert.error(response.body.description);
+                } else {
+                    Alert.error(intl.formatMessage({
+                        id: 'Governance.Rulesets.AddEdit.error.loading',
+                        defaultMessage: 'Error loading ruleset',
+                    }));
+                }
+            });
+    }, [id, intl]);
+
+    // External services state and modal
+    const [services, setServices] = useState([]);
+    const [servicesLoading, setServicesLoading] = useState(false);
+    const [selectedServiceId, setSelectedServiceId] = useState(state.externalServiceId || '');
+    const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
+    const [serviceDialogMode, setServiceDialogMode] = useState('create'); // 'create' or 'edit'
+    const [selectedService, setSelectedService] = useState(null);
+
+    function fetchServices() {
+        setServicesLoading(true);
+        const user = AuthManager.getUser();
+        const authHeader = user ? `Bearer ${user.getPartialToken()}` : null;
+        if (!authHeader) {
+            Alert.error(intl.formatMessage({
+                id: 'Governance.Rulesets.AddEdit.external.services.auth.required',
+                defaultMessage: 'Authentication required to load external services',
+            }));
+            setServicesLoading(false);
+            return;
+        }
+
+        fetch('/api/am/governance/v1/external-services', {
+            headers: {
+                Authorization: authHeader,
+            },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                // API returns { list: [...] } or an array
+                const list = Array.isArray(data) ? data : (data.list || []);
+                setServices(list);
+            })
+            .catch((err) => {
+                console.error('Failed to load external services', err);
+            })
+            .finally(() => setServicesLoading(false));
+    }
+
+    useEffect(() => {
+        if (isExternalRuleset) {
+            fetchServices();
+        }
+    }, [isExternalRuleset]);
+
+    useEffect(() => {
+        setSelectedServiceId(state.externalServiceId || '');
+    }, [state.externalServiceId]);
+
+    // When services list or ruleset content changes, mark service matching serviceRef in the ruleset as selected
+    useEffect(() => {
+        if (services && services.length > 0 && rulesetContent && rulesetContent.trim()) {
+            const m = rulesetContent.match(/serviceRef:\s*"?([^"\s']+)"?/);
+            const ref = m ? m[1] : null;
+            if (ref) {
+                const found = services.find((s) => String(s.id) === String(ref));
+                if (found) {
+                    setSelectedServiceId(found.id);
+                    dispatch({ field: 'externalServiceId', value: found.id });
+                }
+            }
+        }
+    }, [services, rulesetContent]);
+
+    const openCreateServiceModal = () => {
+        setServiceDialogMode('create');
+        setSelectedService(null);
+        setServiceDialogOpen(true);
+    };
+
+    const openEditServiceModal = (service) => {
+        setServiceDialogMode('edit');
+        setSelectedService(service);
+        setServiceDialogOpen(true);
+    };
+
+    const deleteExternalService = (serviceId) => {
+        const user = AuthManager.getUser();
+        const authHeader = user ? `Bearer ${user.getPartialToken()}` : null;
+        if (!authHeader) {
+            return;
+        }
+
+        if (window.confirm('Are you sure you want to delete this service?')) {
+            fetch(`/api/am/governance/v1/external-services/${serviceId}`, {
+                method: 'DELETE',
+                headers: { Authorization: authHeader },
+            })
+                .then((res) => {
+                    if (res.status === 204 || res.ok) {
+                        setServices(services.filter((s) => s.id !== serviceId));
+                        if (selectedServiceId === serviceId) {
+                            setSelectedServiceId('');
+                            dispatch({ field: 'externalServiceId', value: '' });
+                        }
                     } else {
-                        Alert.error(intl.formatMessage({
-                            id: 'Governance.Rulesets.AddEdit.error.loading',
-                            defaultMessage: 'Error loading ruleset',
-                        }));
+                        throw new Error('Failed to delete service');
                     }
+                })
+                .catch((err) => {
+                    console.error('Error deleting service:', err);
                 });
         }
-    }, [id]);
+    };
+
+    const saveExternalService = (serviceData) => {
+        const serviceId = serviceData.id || selectedService?.id;
+        const payload = {
+            name: serviceData.name,
+            url: serviceData.url,
+            prompt: serviceData.prompt,
+            timeoutMs: serviceData.timeoutMs,
+            retryCount: serviceData.retryCount,
+            isLLM: serviceData.isLLM ? 'true' : 'false',
+            headers: serviceData.headers.map((header) => ({
+                headerKey: header.headerKey,
+                headerValue: header.headerValue,
+                category: header.category,
+            })),
+        };
+        const method = serviceDialogMode === 'create' ? 'POST' : 'PUT';
+        const url = serviceDialogMode === 'create'
+            ? '/api/am/governance/v1/external-services'
+            : `/api/am/governance/v1/external-services/${serviceId}`;
+
+        if (serviceDialogMode === 'edit' && !serviceId) {
+            Alert.error('Unable to update external service');
+            return;
+        }
+
+        const user = AuthManager.getUser();
+        const authHeader = user ? `Bearer ${user.getPartialToken()}` : null;
+        if (!authHeader) {
+            Alert.error(intl.formatMessage({
+                id: 'Governance.Rulesets.AddEdit.external.services.delete.auth.required',
+                defaultMessage: 'Authentication required to delete external service',
+            }));
+            return;
+        }
+
+        fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json', Authorization: authHeader },
+            body: JSON.stringify(payload),
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error('Failed to save service');
+                return res.json().catch(() => ({}));
+            })
+            .then(() => {
+                setServiceDialogOpen(false);
+                fetchServices();
+            })
+            .catch((err) => {
+                Alert.error('Failed to save external service');
+                console.error(err);
+            });
+    };
+
+    const handleSelectService = (svcId) => {
+        // single-select behavior
+        const newId = selectedServiceId === svcId ? '' : svcId;
+        setSelectedServiceId(newId);
+        dispatch({ field: 'externalServiceId', value: newId });
+    };
+
+    // Called by ExternalRulesetForm when the serviceRef field changes
+    const handleServiceRefChange = (ref) => {
+        if (!ref) {
+            setSelectedServiceId('');
+            dispatch({ field: 'externalServiceId', value: '' });
+            return;
+        }
+        const found = services.find((s) => String(s.id) === String(ref));
+        if (found) {
+            setSelectedServiceId(found.id);
+            dispatch({ field: 'externalServiceId', value: found.id });
+        } else {
+            setSelectedServiceId('');
+            dispatch({ field: 'externalServiceId', value: '' });
+        }
+    };
 
     useEffect(() => {
         if (artifactType === 'MCP' && ruleType === 'API_DEFINITION') {
@@ -610,6 +803,8 @@ function AddEditRuleset(props) {
                                 <ExternalRulesetForm
                                     rulesetContent={rulesetContent}
                                     onContentChange={handleEditorChange}
+                                    serviceRef={selectedServiceId}
+                                    onServiceRefChange={handleServiceRefChange}
                                 />
                             )}
                             {!isGenericRuleset && !isExternalRuleset && (
@@ -677,6 +872,102 @@ function AddEditRuleset(props) {
                         )}
                     </Grid>
 
+                    {/* External Services Section (available when EXTERNAL ruleset) */}
+                    {isExternalRuleset && (
+                        <Grid item xs={12}>
+                            <Box sx={{ mt: 2, mb: 2 }}>
+                                <Grid container alignItems='center' justifyContent='space-between'>
+                                    <Grid item>
+                                        <Typography variant='subtitle2'>
+                                            <FormattedMessage
+                                                id='Governance.Rulesets.AddEdit.external.services.title'
+                                                defaultMessage='External Services'
+                                            />
+                                        </Typography>
+                                    </Grid>
+                                    <Grid item>
+                                        <Button onClick={openCreateServiceModal} variant='contained' size='small'>
+                                            <FormattedMessage
+                                                id='Governance.Rulesets.AddEdit.external.services.create'
+                                                defaultMessage='Create New Service'
+                                            />
+                                        </Button>
+                                    </Grid>
+                                </Grid>
+                                <Box sx={{ mt: 1 }}>
+                                    {servicesLoading && <CircularProgress size={20} />}
+                                    <Grid container spacing={2} sx={{ mt: 1 }}>
+                                        {services && services.length === 0 && !servicesLoading && (
+                                            <Grid item xs={12}>
+                                                <Typography variant='caption'>
+                                                    <FormattedMessage
+                                                        id='Governance.Rulesets.AddEdit.external.services.empty'
+                                                        defaultMessage='No external services available.'
+                                                    />
+                                                </Typography>
+                                            </Grid>
+                                        )}
+                                        {services.map((svc) => (
+                                            <Grid item key={svc.id} xs={12} sm={6} md={4} lg={3}>
+                                                <Paper
+                                                    variant='outlined'
+                                                    sx={{
+                                                        p: 1,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        border: selectedServiceId === svc.id
+                                                            ? '2px solid #1976d2'
+                                                            : '1px solid #e0e0e0',
+                                                    }}
+                                                >
+                                                    <Box
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 1,
+                                                            flex: 1,
+                                                        }}
+                                                    >
+                                                        <FormControlLabel
+                                                            control={(
+                                                                <Checkbox
+                                                                    checked={selectedServiceId === svc.id}
+                                                                    onChange={() => handleSelectService(svc.id)}
+                                                                />
+                                                            )}
+                                                            label={(
+                                                                <Typography variant='body2'>{svc.name}</Typography>
+                                                            )}
+                                                        />
+                                                    </Box>
+                                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                        <Button size='small' onClick={() => openEditServiceModal(svc)}>
+                                                            <FormattedMessage
+                                                                id='Governance.Rulesets.AddEdit.external.services.edit'
+                                                                defaultMessage='Edit'
+                                                            />
+                                                        </Button>
+                                                        <Button
+                                                            size='small'
+                                                            color='error'
+                                                            onClick={() => deleteExternalService(svc.id)}
+                                                        >
+                                                            <FormattedMessage
+                                                                id={DELETE_EXTERNAL_SERVICE_MESSAGE_ID}
+                                                                defaultMessage='Delete'
+                                                            />
+                                                        </Button>
+                                                    </Box>
+                                                </Paper>
+                                            </Grid>
+                                        ))}
+                                    </Grid>
+                                </Box>
+                            </Box>
+                        </Grid>
+                    )}
+
                     {/* Action Buttons */}
                     <Grid item xs={12} sx={{ mb: 2 }}>
                         <Box component='span' m={1}>
@@ -718,6 +1009,14 @@ function AddEditRuleset(props) {
                     </Grid>
                 </Grid>
             </Box>
+
+            <ExternalServiceDialog
+                open={serviceDialogOpen}
+                mode={serviceDialogMode}
+                service={selectedService}
+                onClose={() => setServiceDialogOpen(false)}
+                onSave={saveExternalService}
+            />
 
             {/* Add the confirmation dialog */}
             <Dialog
