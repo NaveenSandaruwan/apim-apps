@@ -92,6 +92,7 @@ const CONSTS = {
     ],
     RULESET_TYPES: [
         { value: 'API_DEFINITION', label: 'Definition' },
+        { value: 'EXTERNAL', label: 'External' },
         { value: 'API_METADATA', label: 'Metadata' },
         { value: 'API_DOCUMENTATION', label: 'Documentation' },
         { value: 'GENERIC', label: 'Generic' },

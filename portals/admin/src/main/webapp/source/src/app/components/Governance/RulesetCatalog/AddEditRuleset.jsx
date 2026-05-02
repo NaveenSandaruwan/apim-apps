@@ -58,11 +58,11 @@ import Utils from 'AppData/Utils';
 import * as monaco from 'monaco-editor';
 import { Editor as MonacoEditor, loader } from '@monaco-editor/react';
 import GenericRulesetForm from './GenericRulesetForm';
+import ExternalRulesetForm from './ExternalRulesetForm';
 
 // load Monaco from node_modules instead of CDN
 loader.config({ monaco });
 
-const StyledSpan = styled('span')(({ theme }) => ({ color: theme.palette.error.dark }));
 const StyledHr = styled('hr')({ border: 'solid 1px #efefef' });
 
 const EditorToolbar = styled(Box)(({ theme }) => ({
@@ -139,6 +139,7 @@ function AddEditRuleset(props) {
         : CONSTS.RULESET_TYPES;
 
     const isGenericRuleset = ruleCategory === 'GENERIC';
+    const isExternalRuleset = ruleCategory === 'EXTERNAL' || ruleType === 'EXTERNAL';
 
     useEffect(() => {
         const restApi = new GovernanceAPI();
@@ -208,8 +209,15 @@ function AddEditRuleset(props) {
                     ].join('\n');
                     dispatch({ field: 'rulesetContent', value: defaultYaml });
                 }
+            } else if (e.target.value === 'EXTERNAL') {
+                // mark as EXTERNAL so the form renders the ExternalRulesetForm
+                dispatch({ field: 'ruleCategory', value: 'EXTERNAL' });
+                // Leave rulesetContent empty - ExternalRulesetForm will populate if needed
+                if (!rulesetContent || !rulesetContent.trim()) {
+                    dispatch({ field: 'rulesetContent', value: '' });
+                }
             } else {
-                // Reset ruleCategory when switching away from GENERIC
+                // Reset ruleCategory when switching away from GENERIC/EXTERNAL
                 dispatch({ field: 'ruleCategory', value: '' });
             }
         }
@@ -384,12 +392,19 @@ function AddEditRuleset(props) {
 
         setSaving(true);
 
-        const file = new File([rulesetContent], `${name}.yaml`);
+        // Ensure these keys are not written with surrounding quotes in the YAML
+        let contentToSave = rulesetContent || '';
+        // Remove surrounding single or double quotes for top-level keys if present
+        contentToSave = contentToSave.replace(/(^\s*ruleCategory:\s*)['"]([^'"]+)['"]/gmi, '$1$2');
+        contentToSave = contentToSave.replace(/(^\s*ruleType:\s*)['"]([^'"]+)['"]/gmi, '$1$2');
+        contentToSave = contentToSave.replace(/(^\s*artifactType:\s*)['"]([^'"]+)['"]/gmi, '$1$2');
+
+        const file = new File([contentToSave], `${name}.yaml`);
         const body = {
             ...state,
             provider: AuthManager.getUser().name,
             ruleCategory: ruleCategory || 'SPECTRAL',
-            ruleType: ruleType === 'GENERIC' ? 'API_DEFINITION' : ruleType,
+            ruleType: (ruleType === 'GENERIC' || ruleType === 'EXTERNAL') ? 'API_DEFINITION' : ruleType,
             rulesetContent: file,
         };
 
@@ -483,135 +498,79 @@ function AddEditRuleset(props) {
             <Box component='div' m={2} sx={{ mb: 15 }}>
                 <Grid container spacing={2}>
                     {/* General Details Section */}
-                    <Grid item xs={12} md={12} lg={3} style={{ paddingLeft: '24px', paddingTop: '24px' }}>
-                        <Typography color='inherit' variant='subtitle2' component='div'>
-                            <FormattedMessage
-                                id='Governance.Rulesets.AddEdit.general.details'
-                                defaultMessage='General Details'
-                            />
-                        </Typography>
-                        <Typography color='inherit' variant='caption' component='p'>
-                            <FormattedMessage
-                                id='Governance.Rulesets.AddEdit.general.details.description'
-                                defaultMessage='Provide name and description of the ruleset.'
-                            />
-                        </Typography>
+                    <Grid item xs={12}>
+                        <TextField
+                            margin='dense'
+                            name='documentationLink'
+                            value={documentationLink}
+                            onChange={onChange}
+                            label={(
+                                <FormattedMessage
+                                    id='Governance.Rulesets.AddEdit.form.documentation'
+                                    defaultMessage='Documentation Link'
+                                />
+                            )}
+                            fullWidth
+                            error={hasErrors('documentationLink', documentationLink, validating)}
+                            helperText={hasErrors('documentationLink', documentationLink, validating)}
+                            variant='outlined'
+                        />
                     </Grid>
-
-                    <Grid item xs={12} md={12} lg={9}>
-                        <Box component='div' m={1}>
-                            <TextField
-                                autoFocus
-                                margin='dense'
-                                name='name'
-                                value={name}
-                                onChange={onChange}
-                                label={(
-                                    <span>
+                    <Grid item xs={12}>
+                        <Grid container spacing={2}>
+                            <Grid item xs={6}>
+                                <TextField
+                                    select
+                                    margin='dense'
+                                    name='artifactType'
+                                    value={artifactType}
+                                    onChange={onChange}
+                                    label={(
                                         <FormattedMessage
-                                            id='Governance.Rulesets.AddEdit.form.name'
-                                            defaultMessage='Name'
+                                            id='Governance.Rulesets.AddEdit.form.artifact.type'
+                                            defaultMessage='Artifact Type'
                                         />
-                                        <StyledSpan>*</StyledSpan>
-                                    </span>
-                                )}
-                                fullWidth
-                                error={hasErrors('name', name, validating)}
-                                helperText={hasErrors('name', name, validating)}
-                                variant='outlined'
-                            />
-                            <TextField
-                                margin='dense'
-                                name='description'
-                                value={description}
-                                onChange={onChange}
-                                label={(
-                                    <FormattedMessage
-                                        id='Governance.Rulesets.AddEdit.form.description'
-                                        defaultMessage='Description'
-                                    />
-                                )}
-                                fullWidth
-                                error={hasErrors('description', description, validating)}
-                                helperText={hasErrors('description', description, validating)}
-                                multiline
-                                rows={3}
-                                variant='outlined'
-                                InputProps={{
-                                    style: { padding: 0 },
-                                }}
-                            />
-                            <TextField
-                                margin='dense'
-                                name='documentationLink'
-                                value={documentationLink}
-                                onChange={onChange}
-                                label={(
-                                    <FormattedMessage
-                                        id='Governance.Rulesets.AddEdit.form.documentation'
-                                        defaultMessage='Documentation Link'
-                                    />
-                                )}
-                                fullWidth
-                                error={hasErrors('documentationLink', documentationLink, validating)}
-                                helperText={hasErrors('documentationLink', documentationLink, validating)}
-                                variant='outlined'
-                            />
-                            <Grid container spacing={2}>
-                                <Grid item xs={6}>
-                                    <TextField
-                                        select
-                                        margin='dense'
-                                        name='artifactType'
-                                        value={artifactType}
-                                        onChange={onChange}
-                                        label={(
-                                            <FormattedMessage
-                                                id='Governance.Rulesets.AddEdit.form.artifact.type'
-                                                defaultMessage='Artifact Type'
-                                            />
-                                        )}
-                                        fullWidth
-                                        error={hasErrors('artifactType', artifactType, validating)}
-                                        helperText={hasErrors('artifactType', artifactType, validating)}
-                                        required
-                                        variant='outlined'
-                                    >
-                                        {CONSTS.ARTIFACT_TYPES.map((option) => (
-                                            <MenuItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </MenuItem>
-                                        ))}
-                                    </TextField>
-                                </Grid>
-                                <Grid item xs={6}>
-                                    <TextField
-                                        select
-                                        margin='dense'
-                                        name='ruleType'
-                                        value={ruleType}
-                                        onChange={onChange}
-                                        label={(
-                                            <FormattedMessage
-                                                id='Governance.Rulesets.AddEdit.form.ruleset.type'
-                                                defaultMessage='Ruleset Type'
-                                            />
-                                        )}
-                                        fullWidth
-                                        error={hasErrors('ruleType', ruleType, validating)}
-                                        helperText={hasErrors('ruleType', ruleType, validating)}
-                                        required
-                                        variant='outlined'
-                                    >
-                                        {rulesetTypeOptions.map((option) => (
-                                            <MenuItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </MenuItem>
-                                        ))}
-                                    </TextField>
-                                </Grid>
+                                    )}
+                                    fullWidth
+                                    error={hasErrors('artifactType', artifactType, validating)}
+                                    helperText={hasErrors('artifactType', artifactType, validating)}
+                                    required
+                                    variant='outlined'
+                                >
+                                    {CONSTS.ARTIFACT_TYPES.map((option) => (
+                                        <MenuItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
                             </Grid>
-                        </Box>
+                            <Grid item xs={6}>
+                                <TextField
+                                    select
+                                    margin='dense'
+                                    name='ruleType'
+                                    value={ruleType}
+                                    onChange={onChange}
+                                    label={(
+                                        <FormattedMessage
+                                            id='Governance.Rulesets.AddEdit.form.ruleset.type'
+                                            defaultMessage='Ruleset Type'
+                                        />
+                                    )}
+                                    fullWidth
+                                    error={hasErrors('ruleType', ruleType, validating)}
+                                    helperText={hasErrors('ruleType', ruleType, validating)}
+                                    required
+                                    variant='outlined'
+                                >
+                                    {rulesetTypeOptions.map((option) => (
+                                        <MenuItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            </Grid>
+                        </Grid>
                     </Grid>
 
                     <Grid item xs={12}>
@@ -640,13 +599,20 @@ function AddEditRuleset(props) {
 
                     <Grid item xs={12} md={12} lg={12}>
                         <Box component='div' m={1}>
-                            {isGenericRuleset ? (
+                            {isGenericRuleset && (
                                 <GenericRulesetForm
                                     rulesetContent={rulesetContent}
                                     onContentChange={handleEditorChange}
                                     rulesetName={name}
                                 />
-                            ) : (
+                            )}
+                            {isExternalRuleset && !isGenericRuleset && (
+                                <ExternalRulesetForm
+                                    rulesetContent={rulesetContent}
+                                    onContentChange={handleEditorChange}
+                                />
+                            )}
+                            {!isGenericRuleset && !isExternalRuleset && (
                                 <Paper variant='outlined'>
                                     <EditorToolbar>
                                         <Box sx={{ display: 'flex', gap: 1 }}>
