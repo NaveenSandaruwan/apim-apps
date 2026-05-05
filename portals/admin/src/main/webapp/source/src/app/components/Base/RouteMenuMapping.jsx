@@ -53,6 +53,7 @@ import RuleIcon from '@mui/icons-material/Rule';
 import BlockIcon from '@mui/icons-material/Block';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import MiscellaneousServicesIcon from '@mui/icons-material/MiscellaneousServices';
 import ApplicationCreation from 'AppComponents/Workflow/ApplicationCreation';
 import ApplicationUpdate from 'AppComponents/Workflow/ApplicationUpdate';
 import ApplicationDeletion from 'AppComponents/Workflow/ApplicationDeletion';
@@ -74,6 +75,7 @@ import ListApis from '../APISettings/ListApis';
 import UsageReport from '../APISettings/UsageReport';
 import ListLabels from '../Labels/ListLabels';
 import ComplianceDashboard from '../Governance/ComplianceDashboard';
+import ExternalServices from '../Governance/ExternalServices';
 import ExportConsumptionData from '../ConsumptionData/ExportConsumptionData';
 
 const RouteMenuMapping = (intl) => [
@@ -359,6 +361,16 @@ const RouteMenuMapping = (intl) => [
                 path: '/governance/policies',
                 component: Policies,
                 icon: <PolicyIcon />,
+            },
+            {
+                id: 'External Services',
+                displayText: intl.formatMessage({
+                    id: 'Base.RouteMenuMapping.governance.external.services',
+                    defaultMessage: 'External Services',
+                }),
+                path: '/governance/external-services',
+                component: ExternalServices,
+                icon: <MiscellaneousServicesIcon />,
             },
             {
                 id: 'Ruleset Catalog',
