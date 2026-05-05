@@ -168,12 +168,10 @@ function ExternalRulesetForm({
                             'Payload Method',
                         )}
                         value={values.payloadMethod}
-                        onChange={(e) => update('payloadMethod', e.target.value)}
+                        disabled
                         size='small'
                     >
                         <MenuItem value='POST'>POST</MenuItem>
-                        <MenuItem value='GET'>GET</MenuItem>
-                        <MenuItem value='PUT'>PUT</MenuItem>
                     </TextField>
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -225,19 +223,6 @@ function ExternalRulesetForm({
                         )}
                         value={values.responseExpectedValue}
                         onChange={(e) => update('responseExpectedValue', e.target.value)}
-                        size='small'
-                    />
-                </Grid>
-
-                <Grid item xs={12}>
-                    <TextField
-                        fullWidth
-                        label={formatMessage(
-                            'Governance.Rulesets.External.serviceRef',
-                            'Service Reference',
-                        )}
-                        value={values.serviceRef}
-                        onChange={(e) => update('serviceRef', e.target.value)}
                         size='small'
                     />
                 </Grid>
