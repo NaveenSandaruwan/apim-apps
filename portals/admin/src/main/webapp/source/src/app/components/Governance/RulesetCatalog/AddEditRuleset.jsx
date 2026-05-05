@@ -850,15 +850,6 @@ function AddEditRuleset(props) {
                                                             <Typography variant='body2' fontWeight={600}>
                                                                 {svc.name}
                                                             </Typography>
-                                                            {svc.url && (
-                                                                <Typography
-                                                                    variant='caption'
-                                                                    color='textSecondary'
-                                                                    display='block'
-                                                                >
-                                                                    {svc.url}
-                                                                </Typography>
-                                                            )}
                                                         </Box>
                                                     </Box>
                                                 </Paper>

@@ -37,6 +37,11 @@ import {
     MenuItem,
     Checkbox,
     FormControlLabel,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogContentText,
+    DialogActions,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -79,6 +84,9 @@ function ExternalServices() {
     const intl = useIntl();
     const [services, setServices] = useState([]);
     const [saving, setSaving] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [serviceToDelete, setServiceToDelete] = useState(null);
+    const [deleting, setDeleting] = useState(false);
 
     const loadServices = () => {
         const user = AuthManager.getUser();
@@ -113,7 +121,58 @@ function ExternalServices() {
         loadServices();
     }, []);
 
-    // delete handled from form page; list view shows names only
+    const handleDeleteClick = (service) => {
+        setServiceToDelete(service);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = () => {
+        if (!serviceToDelete) return;
+        const user = AuthManager.getUser();
+        const authHeader = user ? `Bearer ${user.getPartialToken()}` : null;
+        if (!authHeader) {
+            Alert.error(intl.formatMessage({
+                id: 'Governance.ExternalServices.delete.auth.required',
+                defaultMessage: 'Authentication required to delete external service',
+            }));
+            return;
+        }
+
+        setDeleting(true);
+        fetch(`/api/am/governance/v1/external-services/${serviceToDelete.id}`, {
+            method: 'DELETE',
+            headers: {
+                Authorization: authHeader,
+            },
+        })
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error('Failed to delete service');
+                }
+                Alert.success(intl.formatMessage({
+                    id: 'Governance.ExternalServices.delete.successful',
+                    defaultMessage: 'External service deleted successfully',
+                }));
+                loadServices();
+            })
+            .catch((error) => {
+                console.error('Failed to delete external service', error);
+                Alert.error(intl.formatMessage({
+                    id: 'Governance.ExternalServices.delete.error',
+                    defaultMessage: 'Failed to delete external service',
+                }));
+            })
+            .finally(() => {
+                setDeleting(false);
+                setDeleteDialogOpen(false);
+                setServiceToDelete(null);
+            });
+    };
+
+    const handleDeleteCancel = () => {
+        setDeleteDialogOpen(false);
+        setServiceToDelete(null);
+    };
 
     const saveService = (serviceData) => {
         const serviceId = serviceData.id;
@@ -222,7 +281,41 @@ function ExternalServices() {
                             {value}
                         </Typography>
                     ),
-                    setCellProps: () => ({ style: { width: '60%' } }),
+                    setCellProps: () => ({ style: { width: '70%' } }),
+                },
+            },
+            {
+                name: 'actions',
+                label: intl.formatMessage({
+                    id: 'Governance.ExternalServices.column.actions',
+                    defaultMessage: 'Actions',
+                }),
+                options: {
+                    filter: false,
+                    sort: false,
+                    customBodyRender: (value, tableMeta) => {
+                        const row = Array.isArray(tableMeta.rowData) ? tableMeta.rowData : [];
+                        const idFromRow = row.length > 0 ? row[row.length - 1] : undefined;
+                        if (!idFromRow) return <span />;
+                        return (
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <RouterLink to={`/governance/external-services/${idFromRow}`}>
+                                    <IconButton size='small' color='primary' title='Edit'>
+                                        <EditIcon fontSize='small' />
+                                    </IconButton>
+                                </RouterLink>
+                                <IconButton
+                                    size='small'
+                                    color='error'
+                                    title='Delete'
+                                    onClick={() => handleDeleteClick({ id: idFromRow })}
+                                >
+                                    <DeleteOutlineIcon fontSize='small' />
+                                </IconButton>
+                            </Box>
+                        );
+                    },
+                    setCellProps: () => ({ style: { width: '30%', textAlign: 'center' } }),
                 },
             },
             { name: 'url', options: { display: false } },
@@ -292,21 +385,54 @@ function ExternalServices() {
         );
 
         return (
-            <ListBase
-                columProps={columProps}
-                pageProps={pageProps}
-                apiCall={apiCall}
-                emptyBoxProps={emptyBoxProps}
-                addButtonOverride={addButtonOverride}
-                editComponentProps={{
-                    icon: <EditIcon />,
-                    title: intl.formatMessage({
-                        id: 'Governance.ExternalServices.edit.title',
-                        defaultMessage: 'Edit Service',
-                    }),
-                    routeTo: '/governance/external-services/',
-                }}
-            />
+            <>
+                <ListBase
+                    columProps={columProps}
+                    pageProps={pageProps}
+                    apiCall={apiCall}
+                    emptyBoxProps={emptyBoxProps}
+                    addButtonOverride={addButtonOverride}
+                    showActionColumn={false}
+                />
+                <Dialog
+                    open={deleteDialogOpen}
+                    onClose={handleDeleteCancel}
+                >
+                    <DialogTitle>
+                        <FormattedMessage
+                            id='Governance.ExternalServices.delete.dialog.title'
+                            defaultMessage='Delete External Service?'
+                        />
+                    </DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>
+                            <FormattedMessage
+                                id='Governance.ExternalServices.delete.dialog.message'
+                                defaultMessage='Are you sure you want to delete this external service?'
+                            />
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleDeleteCancel}>
+                            <FormattedMessage
+                                id='Governance.ExternalServices.delete.dialog.cancel'
+                                defaultMessage='Cancel'
+                            />
+                        </Button>
+                        <Button
+                            onClick={handleDeleteConfirm}
+                            color='error'
+                            variant='contained'
+                            disabled={deleting}
+                        >
+                            <FormattedMessage
+                                id='Governance.ExternalServices.delete.dialog.delete'
+                                defaultMessage='Delete'
+                            />
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            </>
         );
     };
 
