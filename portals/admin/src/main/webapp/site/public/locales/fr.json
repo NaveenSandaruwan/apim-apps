@@ -826,10 +826,7 @@
   "Governance.Rulesets.AddEdit.external.services.form.retryCount": "Retry Count",
   "Governance.Rulesets.AddEdit.external.services.form.timeout": "Timeout (ms)",
   "Governance.Rulesets.AddEdit.external.services.form.url": "URL",
-  "Governance.Rulesets.AddEdit.external.services.headers.add": "Add Header",
-  "Governance.Rulesets.AddEdit.external.services.headers.category": "Category",
   "Governance.Rulesets.AddEdit.external.services.headers.key": "Header Key",
-  "Governance.Rulesets.AddEdit.external.services.headers.title": "Headers",
   "Governance.Rulesets.AddEdit.external.services.headers.value": "Header Value",
   "Governance.Rulesets.AddEdit.external.services.modal.cancel": "Cancel",
   "Governance.Rulesets.AddEdit.external.services.modal.save": "Save",
@@ -1522,5 +1519,6 @@
   "error.list.404": "404 : The page cannot be found.",
   "error.list.404.description": "The page you are looking for might have been removed, had its name changed or is temporarily unavailable.",
   "error.list.500": "500 : The page cannot be displayed.",
-  "error.list.500.description": "The server encountered an internal error or misconfiguration and was unable to complete your request."
+  "error.list.500.description": "The server encountered an internal error or misconfiguration and was unable to complete your request.",
+  "kdoffv": "Add Header"
 }

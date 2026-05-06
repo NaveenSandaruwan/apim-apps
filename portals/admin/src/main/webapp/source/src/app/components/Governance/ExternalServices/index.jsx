@@ -34,7 +34,6 @@ import {
     ListItemIcon,
     ListItemText,
     TextField,
-    MenuItem,
     Checkbox,
     FormControlLabel,
     Dialog,
@@ -512,16 +511,16 @@ function ExternalServices() {
             setFormState((prev) => ({ ...prev, [field]: value }));
         };
 
-        const updateHeader = (index, field, value) => {
+        const updateHeader = (headerId, field, value) => {
             setFormState((prev) => ({
                 ...prev,
-                headers: prev.headers.map((header, headerIndex) => (
-                    headerIndex === index ? { ...header, [field]: value } : header
+                headers: prev.headers.map((header) => (
+                    header.id === headerId ? { ...header, [field]: value } : header
                 )),
             }));
         };
 
-        const addHeader = () => {
+        const addHeader = (category = 'Standard') => {
             setFormState((prev) => ({
                 ...prev,
                 headers: [
@@ -530,18 +529,111 @@ function ExternalServices() {
                         id: createHeaderId(),
                         headerKey: '',
                         headerValue: '',
-                        category: 'Standard',
+                        category,
                     },
                 ],
             }));
         };
 
-        const removeHeader = (index) => {
+        const removeHeader = (headerId) => {
             setFormState((prev) => ({
                 ...prev,
-                headers: prev.headers.filter((_, headerIndex) => headerIndex !== index),
+                headers: prev.headers.filter((header) => header.id !== headerId),
             }));
         };
+
+        const standardHeaders = formState.headers.filter(
+            (header) => normalizeCategory(header.category) === 'Standard',
+        );
+
+        const securityHeaders = formState.headers.filter(
+            (header) => normalizeCategory(header.category) === 'Security',
+        );
+
+        const renderHeaderSection = (title, headers, category) => (
+            <Grid item xs={12}>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        mb: 1,
+                    }}
+                >
+                    <Typography variant='subtitle2'>
+                        <FormattedMessage
+                            id={category === 'Security'
+                                ? 'Governance.Rulesets.AddEdit.external.services.security.headers.title'
+                                : 'Governance.Rulesets.AddEdit.external.services.headers.title'}
+                            defaultMessage={title}
+                        />
+                    </Typography>
+                    <Button startIcon={<AddIcon />} size='small' onClick={() => addHeader(category)}>
+                        <FormattedMessage
+                            id={category === 'Security'
+                                ? 'Governance.Rulesets.AddEdit.external.services.security.headers.add'
+                                : 'Governance.Rulesets.AddEdit.external.services.headers.add'}
+                            defaultMessage='Add Header'
+                        />
+                    </Button>
+                </Box>
+
+                {headers.length === 0 ? (
+                    <Typography variant='caption' color='textSecondary'>
+                        <FormattedMessage
+                            id={category === 'Security'
+                                ? 'Governance.Rulesets.AddEdit.external.services.security.headers.empty'
+                                : 'Governance.Rulesets.AddEdit.external.services.headers.empty'}
+                            defaultMessage={category === 'Security'
+                                ? 'No security headers added yet.'
+                                : 'No standard headers added yet.'}
+                        />
+                    </Typography>
+                ) : (
+                    headers.map((header) => (
+                        <Grid
+                            container
+                            spacing={1}
+                            key={header.id}
+                            alignItems='center'
+                            sx={{ mt: 1 }}
+                        >
+                            <Grid item xs={5}>
+                                <TextField
+                                    fullWidth
+                                    label={intl.formatMessage({
+                                        id: 'Governance.Rulesets.AddEdit.external.services.headers.key',
+                                        defaultMessage: 'Header Key',
+                                    })}
+                                    value={header.headerKey}
+                                    onChange={(e) => updateHeader(header.id, 'headerKey', e.target.value)}
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    fullWidth
+                                    label={intl.formatMessage({
+                                        id: 'Governance.Rulesets.AddEdit.external.services.headers.value',
+                                        defaultMessage: 'Header Value',
+                                    })}
+                                    value={header.headerValue}
+                                    onChange={(e) => updateHeader(header.id, 'headerValue', e.target.value)}
+                                />
+                            </Grid>
+                            <Grid item xs={1}>
+                                <IconButton
+                                    size='small'
+                                    onClick={() => removeHeader(header.id)}
+                                    aria-label='remove header'
+                                >
+                                    <DeleteOutlineIcon fontSize='small' />
+                                </IconButton>
+                            </Grid>
+                        </Grid>
+                    ))
+                )}
+            </Grid>
+        );
 
         const handleSaveLocal = () => {
             saveService({
@@ -549,7 +641,7 @@ function ExternalServices() {
                 headers: formState.headers.map((h) => ({
                     headerKey: h.headerKey,
                     headerValue: h.headerValue,
-                    category: h.category,
+                    category: normalizeCategory(h.category),
                 })),
             });
             handleClose();
@@ -648,85 +740,8 @@ function ExternalServices() {
                             </Grid>
                         )}
 
-                        <Grid item xs={12}>
-                            <Box
-                                sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    mb: 1,
-                                }}
-                            >
-                                <Typography variant='subtitle2'>
-                                    <FormattedMessage
-                                        id='Governance.Rulesets.AddEdit.external.services.headers.title'
-                                        defaultMessage='Headers'
-                                    />
-                                </Typography>
-                                <Button startIcon={<AddIcon />} size='small' onClick={addHeader}>
-                                    <FormattedMessage
-                                        id='Governance.Rulesets.AddEdit.external.services.headers.add'
-                                        defaultMessage='Add Header'
-                                    />
-                                </Button>
-                            </Box>
-                            {formState.headers.map((header, index) => (
-                                <Grid
-                                    container
-                                    spacing={1}
-                                    key={header.id}
-                                    alignItems='center'
-                                    sx={{ mt: 1 }}
-                                >
-                                    <Grid item xs={4}>
-                                        <TextField
-                                            fullWidth
-                                            label={intl.formatMessage({
-                                                id: 'Governance.Rulesets.AddEdit.external.services.headers.key',
-                                                defaultMessage: 'Header Key',
-                                            })}
-                                            value={header.headerKey}
-                                            onChange={(e) => updateHeader(index, 'headerKey', e.target.value)}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={5}>
-                                        <TextField
-                                            fullWidth
-                                            label={intl.formatMessage({
-                                                id: 'Governance.Rulesets.AddEdit.external.services.headers.value',
-                                                defaultMessage: 'Header Value',
-                                            })}
-                                            value={header.headerValue}
-                                            onChange={(e) => updateHeader(index, 'headerValue', e.target.value)}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={2}>
-                                        <TextField
-                                            select
-                                            fullWidth
-                                            label={intl.formatMessage({
-                                                id: 'Governance.Rulesets.AddEdit.external.services.headers.category',
-                                                defaultMessage: 'Category',
-                                            })}
-                                            value={header.category || 'Standard'}
-                                            onChange={(e) => updateHeader(index, 'category', e.target.value)}
-                                        >
-                                            <MenuItem value='Standard'>Standard</MenuItem>
-                                            <MenuItem value='Security'>Security</MenuItem>
-                                        </TextField>
-                                    </Grid>
-                                    <Grid item xs={1}>
-                                        <IconButton
-                                            size='small'
-                                            onClick={() => removeHeader(index)}
-                                            aria-label='remove header'
-                                        >
-                                            <DeleteOutlineIcon fontSize='small' />
-                                        </IconButton>
-                                    </Grid>
-                                </Grid>
-                            ))}
-                        </Grid>
+                        {renderHeaderSection('Headers', standardHeaders, 'Standard')}
+                        {renderHeaderSection('Security Headers', securityHeaders, 'Security')}
 
                         <Grid item xs={12}>
                             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
